@@ -1,0 +1,16 @@
+fastapi
+uvicorn==0.27.0
+tortoise-orm
+aiosqlite
+passlib==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]
+pydantic-settings
+requests==2.31.0
+pydantic[email]
+python-multipart
+python-magic
+aiofiles
+pillow  # 可选，用于图片处理
+gunicorn
+asyncpg # 专门为 PostgreSQL 设计的异步 Python 驱动
