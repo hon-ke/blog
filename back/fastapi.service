@@ -6,9 +6,9 @@ After=network.target
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/www/back
-Environment=PATH=/www/back/.venv/bin
-ExecStart=/www/back/.venv/bin/python -m gunicorn -c /www/back/gunicorn_conf.py main:app
+WorkingDirectory=back
+Environment=PATH=.venv/bin
+ExecStart=.venv/bin/python -m gunicorn -c gunicorn_conf.py main:app
 Restart=always
 RestartSec=3
 
