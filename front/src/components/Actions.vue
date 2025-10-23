@@ -37,6 +37,11 @@
                     </a></li>
             </ul>
         </div>
+
+        <div style="height: 0.4rem;"></div>
+        <a href="/edit" class="btn btn-link btn-action uni-bg bg-blur uni-shadow flex-center">
+            <i class="czs-web-edit-l"></i>
+        </a>
         <div style="height: 0.4rem;"></div>
         <a href="/icons" class="btn btn-link btn-action uni-bg bg-blur uni-shadow flex-center">
             <i class="czs-dashboard-l"></i>
