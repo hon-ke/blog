@@ -305,6 +305,14 @@ class MainWorker:
         else:  # show mode
             log.success("CONFLICT", "仅展示额外的内容", **show_data)
 
+    def get_apikey(self, username, password):
+        result = self.auth_api.login(username, password)
+        log.info(**result)
+
+    def new_apikey(self, api_key):
+        result = self.auth_api.refresh_api_key(api_key)
+        log.info(**result)
+
     def clean(self):
         resp = self.file_api.clean_extra_files()
         log.info("CLEAN", "完成", **resp)
@@ -443,6 +451,12 @@ class SimpleCLI:
 
   # 创建模板文档
   python main.py template
+
+  # 获取API密钥（通过用户名密码登录）
+  python main.py get_apikey --username <用户名> --password <密码>
+
+  # 刷新API密钥
+  python main.py new_apikey
         """
 
     def _setup_commands(self):
@@ -463,6 +477,17 @@ class SimpleCLI:
             default=self.conflict_mode,
             help="处理模式: show(仅显示), pull(拉取), delete(删除)",
         )
+
+        # get_apikey 命令
+        get_apikey_parser = subparsers.add_parser(
+            "getkey", help="通过用户名密码获取API密钥"
+        )
+        get_apikey_parser.add_argument("--username", required=True, help="用户名")
+        get_apikey_parser.add_argument("--password", required=True, help="密码")
+
+        # new_apikey 命令
+        new_key = subparsers.add_parser("newkey", help="刷新API密钥")
+        new_key.add_argument("--apikey", required=False, help="apikey")
 
         # 备份命令
         subparsers.add_parser("backup", help="备份远程数据")
@@ -503,6 +528,7 @@ class SimpleCLI:
 
         try:
             worker = MainWorker(self.base_url, self.api_key)
+
             offline = ["example", "template"]
 
             # 简化的命令执行逻辑
@@ -552,6 +578,26 @@ class SimpleCLI:
             elif args.command == "template":
                 worker.template_maker(self.docs_path)
 
+            elif args.command == "getkey":
+                # 通过用户名密码获取API密钥
+                username = getattr(args, "username", None)
+                password = getattr(args, "password", None)
+
+                if not username or not password:
+                    self.log.error("GET_APIKEY", "用户名和密码不能为空")
+                    return 1
+
+                api_key = worker.get_apikey(username, password)
+
+            elif args.command == "newkey":
+                api_key = getattr(args, "apikey", None)
+                if not api_key:
+                    api_key = self.api_key
+
+                print(api_key)
+                # 刷新API密钥
+                new_key = worker.new_apikey(api_key)
+
         except Exception as e:
             self.log.error(f"执行错误: {e}")
             return 1
@@ -571,7 +617,7 @@ if __name__ == "__main__":
         "base_url": "http://127.0.0.1:8000",
         "api_key": "123456",
         "docs_path": "/home/clay/docs",  # 硬编码文档路径
-        "backup_path": "/home/clay/backups",  # 硬编码备份路径
+        "backup_path": "/home/clay/docs/backups",  # 硬编码备份路径
         "conflict_mode": "show",  # 硬编码冲突处理模式
     }
 
