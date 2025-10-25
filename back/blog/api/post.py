@@ -32,28 +32,34 @@ async def get_public_posts(
             filters["category"] = category
         if tag:
             filters["tag"] = tag
-        
+
         # 获取总数
         total = await post_manager.filter(**filters).count()
-        
+
         # 计算总页数
         total_page = math.ceil(total / size) if total > 0 else 1
-        
+
         # 获取分页数据
         posts = await post_manager.filter(**filters)\
             .offset((page - 1) * size)\
             .limit(size)\
             .order_by("-is_top", "-created_at")\
             .all()
-        
+
+        fixed_list = []
+        for x in posts:
+            if not x.title:
+                x.title = str(x.id)
+                print(x)
+            fixed_list.append(x)
         return PostListResponse(
-            posts=posts,
+            posts=fixed_list,
             total=total,
             total_page=total_page,
             current_page=page,
             size=size
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -67,14 +73,14 @@ async def is_exists(title: str):
     """检查文章是否存在"""
     if not title:
         return {"error": "请输入文章标题"}
-    
+
     try:
         post = await post_manager.get_or_none(title=title)
         if not post:
             return {"is_exists": False}
 
         return {"is_exists": True}
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -87,13 +93,13 @@ async def is_exists(title: str):
 )
 async def like(post_id: int = Query(..., description="文章ID")):
     post = await post_manager.get_or_none(id=post_id)
-    
+
     if not post:
         raise HTTPException(status_code=404, detail="文章不存在")
-    
+
     post.like += 1
     await post.save()
-    
+
     return {
         "status": 200,
         "message": "点赞成功",
@@ -110,7 +116,7 @@ async def get_all_categories():
         if settings.PRESET_CATEGORIES:
             return settings.PRESET_CATEGORIES
         return []
-    
+
     return set([x.get("category","") for x in categories] + settings.PRESET_CATEGORIES)
 
 @router.get(
@@ -134,24 +140,24 @@ async def get_posts_archive():
         posts = await post_manager.filter(is_locked=False)\
             .order_by("-created_at")\
             .all().exclude(category="笔记")
-        
+
         # 按年份分组
         archive_dict = {}
         for post in posts:
             # 提取年份
             year = post.created_at.year
-            
+
             # 初始化年份分组
             if year not in archive_dict:
                 archive_dict[year] = []
-            
+
             # 添加文章信息
             archive_dict[year].append({
                 "time": post.created_at.strftime("%Y-%m-%d"),
                 "title": post.title,
                 "id": post.id
             })
-        
+
         # 转换为要求的格式并按年份倒序排列
         result = []
         for year in sorted(archive_dict.keys(), reverse=True):
@@ -159,9 +165,9 @@ async def get_posts_archive():
                 "date": str(year),  # 年份作为字符串
                 "data": archive_dict[year]
             })
-        
+
         return result
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -174,41 +180,41 @@ def highlight_keyword(text: str, keyword: str, context_length: int = 100) -> str
     """
     if not text or not keyword:
         return text
-    
+
     # 转义正则特殊字符
     escaped_keyword = re.escape(keyword)
-    
+
     # 查找所有匹配位置
     matches = list(re.finditer(escaped_keyword, text, re.IGNORECASE))
-    
+
     if not matches:
         # 如果没有匹配，返回前context_length个字符
         return text[:context_length] + "..." if len(text) > context_length else text
-    
+
     # 取第一个匹配位置
     first_match = matches[0]
     start_pos = first_match.start()
     end_pos = first_match.end()
-    
+
     # 计算截取范围
     context_start = max(0, start_pos - context_length)
     context_end = min(len(text), end_pos + context_length)
-    
+
     # 截取文本
     excerpt = text[context_start:context_end]
-    
+
     # 添加省略号
     prefix = "..." if context_start > 0 else ""
     suffix = "..." if context_end < len(text) else ""
-    
+
     # 高亮关键词
     highlighted_excerpt = re.sub(
-        escaped_keyword, 
-        lambda m: f'<span style="color: #ff0000; font-weight: bold;">{m.group()}</span>', 
-        excerpt, 
+        escaped_keyword,
+        lambda m: f'<span style="color: #ff0000; font-weight: bold;">{m.group()}</span>',
+        excerpt,
         flags=re.IGNORECASE
     )
-    
+
     return f"{prefix}{highlighted_excerpt}{suffix}"
 
 
@@ -220,15 +226,15 @@ async def search_posts(q: str = Query(...)):
     """
     if not q or not q.strip():
         return []
-    
+
     keyword = q.strip()
-    
+
     try:
         # 使用Model的filter方法进行模糊匹配
         posts = await PostModel.filter(
             content__icontains=keyword
         ).order_by("-is_top", "-created_at")
-        
+
         # 转换为字典列表
         posts_data = []
         for post in posts:
@@ -239,9 +245,9 @@ async def search_posts(q: str = Query(...)):
                 "category":post.category,
             }
             posts_data.append(post_data)
-        
+
         return posts_data
-        
+
     except Exception as e:
         print(f"搜索错误: {e}")
         return []
@@ -262,9 +268,9 @@ async def get_public_post(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在或无权访问"
             )
-        
+
         return post
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -289,9 +295,9 @@ async def get_public_post(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在或无权访问"
             )
-        
+
         return post
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -299,6 +305,3 @@ async def get_public_post(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取详情失败: {str(e)}"
         )
-    
-
-
