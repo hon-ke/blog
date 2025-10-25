@@ -15,6 +15,8 @@ import re
 class MainWorker:
 
     def __init__(self, base_url, api_key):
+        self.base_url = base_url
+        self.api_key = api_key
         self.config = {"base_url": base_url, "api_key": api_key}
         # api
         self.auth_api = AuthAPI(**self.config)
@@ -305,11 +307,15 @@ class MainWorker:
         else:  # show mode
             log.success("CONFLICT", "仅展示额外的内容", **show_data)
 
-    def get_apikey(self, username, password):
-        result = self.auth_api.login(username, password)
+    def showkey(self):
+        log.info(apikey = self.api_key)
+
+
+    def get_apikey(self,username,password):
+        result =  self.auth_api.login(username,password)
         log.info(**result)
 
-    def new_apikey(self, api_key):
+    def new_apikey(self,api_key):
         result = self.auth_api.refresh_api_key(api_key)
         log.info(**result)
 
@@ -388,6 +394,11 @@ class MainWorker:
         static_restore_result = result.get("static", {})
         log.info("RESTORE", "完成", **data_restore_result)
         log.info("RESTORE", "完成", **static_restore_result)
+
+
+
+
+
 
 
 class SimpleCLI:
@@ -479,21 +490,22 @@ class SimpleCLI:
         )
 
         # get_apikey 命令
-        get_apikey_parser = subparsers.add_parser(
-            "getkey", help="通过用户名密码获取API密钥"
-        )
+        get_apikey_parser = subparsers.add_parser("getkey", help="通过用户名密码获取API密钥")
         get_apikey_parser.add_argument("--username", required=True, help="用户名")
         get_apikey_parser.add_argument("--password", required=True, help="密码")
 
         # new_apikey 命令
         new_key = subparsers.add_parser("newkey", help="刷新API密钥")
-        new_key.add_argument("--apikey", required=False, help="apikey")
+        new_key.add_argument("--apikey",required=False,help="apikey")
 
+        subparsers.add_parser("show", help="查看信息")
         # 备份命令
         subparsers.add_parser("backup", help="备份远程数据")
 
         # 恢复命令
         subparsers.add_parser("restore", help="从备份恢复数据")
+
+
 
         # 示例文档命令
         subparsers.add_parser("example", help="创建示例文档")
@@ -552,6 +564,8 @@ class SimpleCLI:
             elif args.command == "clean":
                 worker.clean()
 
+            elif args.command == "show":
+                worker.showkey()
             elif args.command == "clear":
                 if input("\033[93m确认清空远程所有内容? (y/N): ").lower() in [
                     "y",
@@ -610,14 +624,13 @@ def main(
 ):
     return SimpleCLI(base_url, api_key, docs_path, backup_path, conflict_mode).run()
 
-
 if __name__ == "__main__":
     # 硬编码所有配置参数
     config = {
-        "base_url": "http://127.0.0.1:8000",
+            "base_url": "http://127.0.0.1:8000",
         "api_key": "123456",
         "docs_path": "/home/clay/docs",  # 硬编码文档路径
-        "backup_path": "/home/clay/docs/backups",  # 硬编码备份路径
+        "backup_path": "/home/clay/backups",  # 硬编码备份路径
         "conflict_mode": "show",  # 硬编码冲突处理模式
     }
 
