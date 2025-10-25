@@ -568,7 +568,7 @@ def main(
 if __name__ == "__main__":
     # 硬编码所有配置参数
     config = {
-        "base_url": "http://hon-ker.cn",
+        "base_url": "http://127.0.0.1:8000",
         "api_key": "123456",
         "docs_path": "/home/clay/docs",  # 硬编码文档路径
         "backup_path": "/home/clay/backups",  # 硬编码备份路径

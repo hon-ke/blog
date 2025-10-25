@@ -5,15 +5,13 @@ from core.security import hash_password
 from core.config import settings
 from core.meta import MetaModel
 from blog.preset import preset_blogdata
+from pathlib import Path
 import json
 
 def get_tortoise_config():
     """生成 Tortoise ORM 配置"""
     if not settings.DEBUG:
         # PostgreSQL 配置
-        from urllib.parse import urlparse
-        parsed = urlparse(settings.DATABASE_URL)
-        # ParseResult(scheme='postgres', netloc='blog:123456@localhost:5432', path='/blog', params='', query='', fragment='')
         return {
             'connections': {
                 'default': {
@@ -37,17 +35,15 @@ def get_tortoise_config():
             }
         };
     else:
-        # 默认使用 SQLite
-        sqlite_path = settings.DATABASE_URL.replace('sqlite://', '')
-        if not sqlite_path or sqlite_path == 'blog':
-            sqlite_path = os.path.join(os.path.dirname(__file__), '..', 'db.sqlite3')
+        base_dir = Path(__file__).parent.parent
+        db_path = base_dir / "db.sqlite3"
 
-        return {
+        config = {
             'connections': {
                 'default': {
                     'engine': 'tortoise.backends.sqlite',
                     'credentials': {
-                        'file_path': sqlite_path
+                        'file_path': str(db_path),
                     }
                 }
             },
@@ -58,6 +54,7 @@ def get_tortoise_config():
                 }
             }
         }
+        return config
 
 def auto_load_modules():
     """自动加载模型模块"""

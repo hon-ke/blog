@@ -168,6 +168,9 @@ pids
 # Remove if you're not using SQLite
 *.db
 *.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+static/*
 
 # Jupyter Notebook
 .ipynb_checkpoints

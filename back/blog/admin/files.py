@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from urllib.parse import unquote
 
 from core.config import settings
-from blog.models import page_manager,post_manager
+from blog.models import PostModel, page_manager,post_manager
 
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +22,7 @@ class UploadConfig:
     """上传配置类"""
     MAX_FILE_SIZE = 100 * 1024 * 1024  # 50MB
     UPLOAD_DIR = settings.STATIC_DIR
-    
+
     # 允许的文件类型
     ALLOWED_TYPES = {
         'images': ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"],
@@ -35,7 +35,7 @@ class UploadConfig:
             "application/zip", "application/x-rar-compressed"
         ]
     }
-    
+
     # 图片压缩配置
     COMPRESS_ENABLED = True
     MAX_IMAGE_SIZE = (1920, 1080)
@@ -55,19 +55,19 @@ def get_file_type(content: bytes, filename: str) -> str:
     try:
         mime = magic.Magic(mime=True)
         mime_type = mime.from_buffer(content)
-        
+
         # 检查是否在允许的类型中
         allowed_types = (
-            UploadConfig.ALLOWED_TYPES['images'] + 
-            UploadConfig.ALLOWED_TYPES['videos'] + 
+            UploadConfig.ALLOWED_TYPES['images'] +
+            UploadConfig.ALLOWED_TYPES['videos'] +
             UploadConfig.ALLOWED_TYPES['documents']
         )
-        
+
         if mime_type in allowed_types:
             return mime_type
     except:
         pass
-    
+
     # 通过文件扩展名判断
     ext_map = {
         '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -75,7 +75,7 @@ def get_file_type(content: bytes, filename: str) -> str:
         '.webp': 'image/webp', '.mp4': 'video/mp4',
         '.pdf': 'application/pdf'
     }
-    
+
     ext = os.path.splitext(filename)[1].lower()
     return ext_map.get(ext, 'application/octet-stream')
 
@@ -83,13 +83,13 @@ def generate_filename(original_name: str, upload_dir: str) -> str:
     """生成唯一文件名"""
     base_name, ext = os.path.splitext(original_name)
     filename = original_name
-    
+
     counter = 1
     while os.path.exists(os.path.join(upload_dir, filename)):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{base_name}_{timestamp}_{counter}{ext}" if counter > 1 else f"{base_name}_{timestamp}{ext}"
         counter += 1
-    
+
     return filename
 
 def compress_image(content: bytes, mime_type: str) -> tuple[bytes, str]:
@@ -97,7 +97,7 @@ def compress_image(content: bytes, mime_type: str) -> tuple[bytes, str]:
     try:
         image = Image.open(io.BytesIO(content))
         original_size = image.size
-        
+
         # 调整尺寸
         if original_size[0] > UploadConfig.MAX_IMAGE_SIZE[0] or original_size[1] > UploadConfig.MAX_IMAGE_SIZE[1]:
             ratio = min(
@@ -106,7 +106,7 @@ def compress_image(content: bytes, mime_type: str) -> tuple[bytes, str]:
             )
             new_size = (int(original_size[0] * ratio), int(original_size[1] * ratio))
             image = image.resize(new_size, Image.Resampling.LANCZOS)
-        
+
         # 转换为RGB模式
         if image.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', image.size, (255, 255, 255))
@@ -114,10 +114,10 @@ def compress_image(content: bytes, mime_type: str) -> tuple[bytes, str]:
             image = background
         elif image.mode != 'RGB':
             image = image.convert('RGB')
-        
+
         # 保存压缩图片
         output = io.BytesIO()
-        
+
         if mime_type == 'image/jpeg':
             image.save(output, 'JPEG', quality=UploadConfig.QUALITY['jpeg'], optimize=True)
             new_type = 'image/jpeg'
@@ -130,17 +130,17 @@ def compress_image(content: bytes, mime_type: str) -> tuple[bytes, str]:
         else:
             image.save(output, 'WEBP', quality=UploadConfig.QUALITY['webp'], method=6)
             new_type = 'image/webp'
-        
+
         return output.getvalue(), new_type
-        
+
     except Exception as e:
         print(f"图片压缩失败: {str(e)}")
         return content, mime_type
 
 def should_compress(mime_type: str, file_size: int) -> bool:
     """判断是否需要压缩"""
-    return (UploadConfig.COMPRESS_ENABLED and 
-            mime_type.startswith('image/') and 
+    return (UploadConfig.COMPRESS_ENABLED and
+            mime_type.startswith('image/') and
             file_size > 100 * 1024)
 
 def format_size(bytes_size: int) -> str:
@@ -153,14 +153,14 @@ async def upload_file(file: UploadFile) -> dict:
     """处理单个文件上传"""
     content = await file.read()
     file_size = len(content)
-    
+
     # 验证文件大小
     if file_size > UploadConfig.MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"文件大小超过限制 ({UploadConfig.MAX_FILE_SIZE / 1024 / 1024}MB)"
         )
-    
+
     # 验证文件类型
     mime_type = get_file_type(content, file.filename)
     if mime_type == 'application/octet-stream':
@@ -168,15 +168,15 @@ async def upload_file(file: UploadFile) -> dict:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"不支持的文件类型: {file.filename}"
         )
-    
+
     # 保存原文件
     upload_dir = os.path.join(UploadConfig.UPLOAD_DIR, "uploads")
     filename = generate_filename(file.filename, upload_dir)
     file_path = os.path.join(upload_dir, filename)
-    
+
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
-    
+
     # 构建响应数据
     result = {
         "success": True,
@@ -186,20 +186,20 @@ async def upload_file(file: UploadFile) -> dict:
         "mime_type": mime_type,
         "compressed": False
     }
-    
+
     # 图片压缩处理
     if should_compress(mime_type, file_size):
         try:
             compressed_content, compressed_type = compress_image(content, mime_type)
             compressed_size = len(compressed_content)
-            
+
             # 保存压缩文件
             compressed_dir = os.path.join(UploadConfig.UPLOAD_DIR, "compressed")
             compressed_path = os.path.join(compressed_dir, filename)
-            
+
             async with aiofiles.open(compressed_path, 'wb') as f:
                 await f.write(compressed_content)
-            
+
             # 更新结果
             result.update({
                 "compressed_url": f"{settings.SERVER}/static/compressed/{filename}",
@@ -208,10 +208,10 @@ async def upload_file(file: UploadFile) -> dict:
                 "compressed": True,
                 "compression_ratio": round((1 - compressed_size / file_size) * 100, 1)
             })
-            
+
         except Exception as e:
             print(f"图片压缩失败: {str(e)}")
-    
+
     return result
 
 # 初始化目录
@@ -236,13 +236,13 @@ async def upload_multiple(files: List[UploadFile] = File(...)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="没有接收到文件"
         )
-    
+
     if len(files) > 20:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="一次最多上传20个文件"
         )
-    
+
     results = []
     for file in files:
         try:
@@ -260,7 +260,7 @@ async def upload_multiple(files: List[UploadFile] = File(...)):
                 "success": False,
                 "error": f"上传失败: {str(e)}"
             })
-    
+
     success_count = len([r for r in results if r.get('success')])
     return {
         "success": True,
@@ -275,14 +275,14 @@ def get_safe_path(file_path: str) -> Path:
     """获取安全的文件路径，防止目录遍历攻击"""
     # 解码URL编码的路径
     decoded_path = unquote(file_path)
-    
+
     static_path = Path(settings.STATIC_DIR).resolve()
     full_path = (static_path / decoded_path).resolve()
-    
+
     # 确保文件在static目录内
     if not str(full_path).startswith(str(static_path)):
         raise HTTPException(status_code=400, detail="无效的文件路径")
-    
+
     return full_path
 
 @router.get("/{file_path:path}")
@@ -292,37 +292,37 @@ async def download_file(file_path: str, as_attachment: bool = True):
     """
     try:
         full_path = get_safe_path(file_path)
-        
+
         if not full_path.exists():
             raise HTTPException(status_code=404, detail=f"文件不存在: {file_path}")
-        
+
         if not full_path.is_file():
             raise HTTPException(status_code=400, detail="请求的路径不是文件")
-        
+
         # 获取文件类型
         mime_type, _ = mimetypes.guess_type(str(full_path))
-        
+
         # 获取文件名用于下载
         filename = Path(file_path).name
-        
+
         return FileResponse(
             path=full_path,
             filename=filename if as_attachment else None,
             media_type=mime_type
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
-    
+
 def find_attachments(markdown_content:str) -> List[str]:
     """
     从 Markdown 内容中提取所有以 /static/ 开头的附件路径
-    
+
     Args:
         markdown_content: Markdown 文本内容
-        
+
     Returns:
         附件路径列表（去重后的）
     """
@@ -339,19 +339,19 @@ def find_attachments(markdown_content:str) -> List[str]:
         # 直接路径
         r'(?<!`)(/static/[^\s<>"\'\)]+)'
     ]
-    
+
     attachments = []
-    
+
     for pattern in patterns:
         matches = re.findall(pattern, markdown_content, re.IGNORECASE)
         for match in matches:
             # 清理路径，移除查询参数和可能的标题文本
             clean_path = match.split('?')[0].split('#')[0].strip()
             clean_path = clean_path.split('"')[0].strip()  # 移除标题文本
-            
+
             if clean_path and clean_path.startswith('/static/'):
                 attachments.append(clean_path)
-    
+
     # 去重并返回
     return list(set(attachments))
 
@@ -359,38 +359,41 @@ def find_attachments(markdown_content:str) -> List[str]:
 def get_all_static_files(static_dir: str) -> List[str]:
     """
     递归获取 static 目录下的所有文件
-    
+
     Args:
         static_dir: static 目录的路径
-        
+
     Returns:
         所有文件的绝对路径列表
     """
     static_path = Path(static_dir)
     if not static_path.exists():
         return []
-    
+
     all_files = []
-    
+
     # 递归遍历所有文件和子目录
     for file_path in static_path.rglob("*"):
         if file_path.is_file():
             relative_path = str(file_path.relative_to(static_path))
             all_files.append(str(relative_path))
-    
+
     return all_files
 
 @router.delete("/clean")
 async def clean():
-    post_content = await post_manager.filter().values("content")
+    post_content = await post_manager.filter().values("cover","content")
     page_content = await page_manager.filter().values("content")
 
     # 正确的方式：使用列表推导式提取 content 字段
-    post_content_list = [item["content"] for item in post_content]
+    post_list_from_content = [item["content"] for item in post_content]
+    post_list_form_cover = [item["cover"] for item in post_content]
+    print(post_list_form_cover)
+    print(len(post_list_form_cover))
     page_content_list = [item["content"] for item in page_content]
-    
+
     # 合并所有内容
-    all_content = "".join( post_content_list + page_content_list)
+    all_content = "".join( post_list_from_content+post_list_form_cover + page_content_list)
 
     # 压缩后的和未压缩的
     attach_list =  find_attachments(all_content)
@@ -409,8 +412,6 @@ async def clean():
         os.remove(settings.STATIC_DIR+"/"+x)
         removed+=1
 
-    print(attach_list)
-    
     # print({"Total":len(static_files),"Used":len(attach_list),"Removed":removed})
 
     return {"Total":len(static_files),"Used":len(attach_list),"Removed":removed}
