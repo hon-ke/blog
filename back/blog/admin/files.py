@@ -388,8 +388,6 @@ async def clean():
     # 正确的方式：使用列表推导式提取 content 字段
     post_list_from_content = [item["content"] for item in post_content]
     post_list_form_cover = [item["cover"] for item in post_content]
-    print(post_list_form_cover)
-    print(len(post_list_form_cover))
     page_content_list = [item["content"] for item in page_content]
 
     # 合并所有内容
