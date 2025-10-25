@@ -1,7 +1,7 @@
-#!/usr/bin/python
-from remote import RemotePostAPI,RemoteFileAPI,RemotePageAPI,RemoteRootAPI,AuthAPI
-from typing import List,Union,Optional,Dict,Any,Tuple
-from local import DocsScanner,Post,Page,DocsMaker
+#!/home/clay/.venv/bin/python
+from remote import RemotePostAPI, RemoteFileAPI, RemotePageAPI, RemoteRootAPI, AuthAPI
+from typing import List, Union, Optional, Dict, Any, Tuple
+from local import DocsScanner, Post, Page, DocsMaker
 from urllib.parse import unquote
 from pathlib import Path
 from local import log
@@ -12,15 +12,10 @@ import os
 import re
 
 
-
-
 class MainWorker:
 
-    def __init__(self,base_url,api_key):
-        self.config = {
-            "base_url":base_url,
-            "api_key":api_key
-        }
+    def __init__(self, base_url, api_key):
+        self.config = {"base_url": base_url, "api_key": api_key}
         # api
         self.auth_api = AuthAPI(**self.config)
         self.post_api = RemotePostAPI(**self.config)
@@ -32,29 +27,27 @@ class MainWorker:
         self.posts = []
         self.pages = []
 
-
-    def docs_to_data(self,docs):
+    def docs_to_data(self, docs):
         scanner = DocsScanner(docs_root=docs)
-        self.posts,self.pages = scanner.scan_directory()
-        return self.posts,self.pages
-    
+        self.posts, self.pages = scanner.scan_directory()
+        return self.posts, self.pages
 
-    def data_to_docs(self,data: Dict[str, Any],save_dir="docs"):
+    def data_to_docs(self, data: Dict[str, Any], save_dir="docs"):
         try:
-            _ = data.pop("id","")
-            _ = data.pop("like","")
-            _ = data.pop("updated_at","")
-            _ = data.pop("created_at","")
+            _ = data.pop("id", "")
+            _ = data.pop("like", "")
+            _ = data.pop("updated_at", "")
+            _ = data.pop("created_at", "")
 
-            category = data.get("category","")
-            tag = data.get("tag","")
+            category = data.get("category", "")
+            tag = data.get("tag", "")
             if category:
                 save_dir = f"{save_dir}/{category}"
                 if tag:
                     save_dir = f"{save_dir}/{tag}"
 
             filename = data.get("title")
-            content = data.pop('content', '')
+            content = data.pop("content", "")
 
             # 提取其他数据作为元数据
             metadata = {k: v for k, v in data.items()}
@@ -63,61 +56,63 @@ class MainWorker:
             markdown_parts = []
 
             # 添加YAML front matter元数据, 将元数据转换为YAML格式
-            yaml_metadata = yaml.dump(metadata, default_flow_style=False, allow_unicode=True)
-            markdown_parts.append('---')
+            yaml_metadata = yaml.dump(
+                metadata, default_flow_style=False, allow_unicode=True
+            )
+            markdown_parts.append("---")
             markdown_parts.append(yaml_metadata)
-            markdown_parts.append('---')
+            markdown_parts.append("---")
             markdown_parts.append(content)
 
             # 合并所有部分
-            markdown_content = '\n'.join(markdown_parts)
+            markdown_content = "\n".join(markdown_parts)
 
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
 
-            with open(f"{save_dir}/{filename}.md", 'w', encoding='utf-8') as f:
+            with open(f"{save_dir}/{filename}.md", "w", encoding="utf-8") as f:
                 f.write(markdown_content)
-            
-            return {"save":"success"}
+
+            return {"save": "success"}
 
         except Exception as e:
             raise e
 
-
-    def upload_and_replace(self,item:Union[Post,Page]):
+    def upload_and_replace(self, item: Union[Post, Page]):
         """用来上传"""
-        attach = getattr(item,"attach")
+        attach = getattr(item, "attach")
         if not attach:
             return item
 
         content = item.content
 
         for x in attach:
-            attach_path =  x.get("absolute")
+            attach_path = x.get("absolute")
             upload_result = self.file_api.upload_single(attach_path)
             # 原始文件名
-            origin = x.get("origin",None)
+            origin = x.get("origin", None)
             # 上传状态
-            upload_success = upload_result.get("success",False)
+            upload_success = upload_result.get("success", False)
             # 压缩状态
-            compressed = upload_result.get("compressed",False)
+            compressed = upload_result.get("compressed", False)
             # 未压缩图片地址
-            img_url = upload_result.get("url",None)
+            img_url = upload_result.get("url", None)
             # 缩图片地址
-            compressed_url = upload_result.get("compressed_url",None)
+            compressed_url = upload_result.get("compressed_url", None)
             # 替换内容中的附件为远程地址
             if upload_success and compressed:
-                content = content.replace(origin,compressed_url)
+                content = content.replace(origin, compressed_url)
             if upload_success and not compressed:
-                content = content.replace(origin,img_url) 
+                content = content.replace(origin, img_url)
             if not upload_success:
-                log.error("UPLOAD","失败",attach_path = attach_path **upload_result)
+                log.error("UPLOAD", "失败", attach_path=attach_path**upload_result)
 
         item.content = content
         return item
 
-
-    def download_and_replace(self, item: Dict, base_save_dir: str, static_dir=".static"):
+    def download_and_replace(
+        self, item: Dict, base_save_dir: str, static_dir=".static"
+    ):
         """
         下载内容中的所有静态资源并替换为本地路径
 
@@ -128,7 +123,7 @@ class MainWorker:
         Returns:
             Tuple[替换后的内容, 下载的文件列表]
         """
-        content = item.get("content","")
+        content = item.get("content", "")
 
         static_resources = self._get_static_file(content)
         downloaded_files = []
@@ -146,16 +141,18 @@ class MainWorker:
                 local_static_dir.mkdir(parents=True, exist_ok=True)
 
                 # 远程文件的 /static/ 给删除
-                fixed_path = resource_path.replace("/static/","")
+                fixed_path = resource_path.replace("/static/", "")
                 # 如果是压缩后的文件,则下载原始文件
                 if fixed_path.startswith("compressed"):
-                    fixed_path = fixed_path.replace("compressed","uploads")
+                    fixed_path = fixed_path.replace("compressed", "uploads")
 
                 # 本地保存的地址,保留结构
                 local_file_path = local_static_dir / filename
 
                 # 假设你的 file_api 有 download 方法
-                download_success = self.file_api.download_single(fixed_path, str(local_file_path))
+                download_success = self.file_api.download_single(
+                    fixed_path, str(local_file_path)
+                )
                 if download_success:
                     # 替换内容中的远程路径为本地相对路径
                     abs_local_file_path = str(local_file_path.resolve())
@@ -164,23 +161,27 @@ class MainWorker:
                     # 如果路径在 Markdown 链接或图片中带标题，也需要处理
                     patterns_to_replace = [
                         f'({resource_path} "[^"]*")',  # 带标题的情况
-                        f'({resource_path})'           # 不带标题的情况
+                        f"({resource_path})",  # 不带标题的情况
                     ]
 
                     for pattern in patterns_to_replace:
-                        content = re.sub(pattern, f'({abs_local_file_path})', content)
+                        content = re.sub(pattern, f"({abs_local_file_path})", content)
 
                     downloaded_files.append(str(local_file_path))
                 else:
-                    log.error("DOWNLOAD","失败",download_success,attach_path = resource_path,function = sys._getframe())
-
+                    log.error(
+                        "DOWNLOAD",
+                        "失败",
+                        download_success,
+                        attach_path=resource_path,
+                        function=sys._getframe(),
+                    )
 
             except Exception as e:
-                log.error("DOWNLOAD","失败",attach_path = resource_path ,detail = str(e))
+                log.error("DOWNLOAD", "失败", attach_path=resource_path, detail=str(e))
 
         item["content"] = content
         return item
-
 
     def _get_static_file(self, md_content: str, unique: bool = True) -> List[str]:
         """
@@ -196,15 +197,15 @@ class MainWorker:
         # 改进的正则表达式，正确处理带标题的情况
         patterns = [
             # 图片: ![alt](/static/image.png) 或 ![alt](/static/image.png "title")
-            r'!\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)',
+            r"!\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)",
             # 链接: [text](/static/file.pdf) 或 [text](/static/file.pdf "title")
-            r'\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)',
+            r"\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)",
             # HTML img 标签: <img src="/static/image.jpg">
             r'<img[^>]*src=["\'](/static/[^"\']+)["\'][^>]*>',
             # HTML a 标签: <a href="/static/file.pdf">
             r'<a[^>]*href=["\'](/static/[^"\']+)["\'][^>]*>',
             # 直接路径（可能被代码块排除）
-            r'(?<!`)(/static/[^\s<>"\'\)]+)'
+            r'(?<!`)(/static/[^\s<>"\'\)]+)',
         ]
 
         resources = []
@@ -213,11 +214,11 @@ class MainWorker:
             matches = re.findall(pattern, md_content, re.IGNORECASE)
             for match in matches:
                 # 清理路径，移除 URL 编码、查询参数和可能的标题文本
-                clean_path = match.split('?')[0].split('#')[0].strip()
+                clean_path = match.split("?")[0].split("#")[0].strip()
                 clean_path = clean_path.split('"')[0].strip()  # 移除标题文本
                 clean_path = unquote(clean_path)  # URL 解码
 
-                if clean_path and clean_path.startswith('/static/'):
+                if clean_path and clean_path.startswith("/static/"):
                     resources.append(clean_path)
 
         # 去重处理
@@ -254,13 +255,13 @@ class MainWorker:
         存在三种情况：
             1. 远程数据库有 本地无 属于多余的 多余的要么删除，要么拉取（仅仅拉取多余的，不影响本地，和pull全部拉取不同）
             2. 本地数据库有 远程无 即将新建的（新建的可以直接忽略，一次push可以解决）
-        
+
             delete就是删除远程仅有的
             pull 就是拉取远程仅有的
         """
         # 远程数据库
-        remote_posts =  set(self.post_api.get_all_title())
-        remote_pages =  set(self.page_api.get_all_title())
+        remote_posts = set(self.post_api.get_all_title())
+        remote_pages = set(self.page_api.get_all_title())
 
         # 本地数据库
         local_posts = set([x.title for x in self.posts])
@@ -274,14 +275,22 @@ class MainWorker:
         # 本地数据库有 远程无 新建
         show_data = {
             "mode": mode,
-            "post": ", ".join(remote_only_post_title),
-            "page": ", ".join(remote_only_page_title),
+            "post": (
+                ", ".join(filter(None, remote_only_post_title))
+                if remote_only_post_title
+                else ""
+            ),
+            "page": (
+                ", ".join(filter(None, remote_only_page_title))
+                if remote_only_page_title
+                else ""
+            ),
         }
 
         if not remote_only_post_title and not remote_only_page_title:
             log.success("CONFLICT", "无冲突已忽略")
             return
-            
+
         if mode == "pull":
             posts = [self.post_api.get_post_by_title(x) for x in remote_only_post_title]
             pages = [self.page_api.get_page_by_title(x) for x in remote_only_page_title]
@@ -292,29 +301,32 @@ class MainWorker:
             [self.post_api.delete_post(x) for x in remote_only_post_title]
             [self.page_api.delete_page(x) for x in remote_only_page_title]
             log.success("CONFLICT", "已删除", **show_data)
-            
+
         else:  # show mode
             log.success("CONFLICT", "仅展示额外的内容", **show_data)
-    
+
     def clean(self):
         resp = self.file_api.clean_extra_files()
         log.info("CLEAN", "完成", **resp)
 
     def push(self, docs):
         self.docs_to_data(docs)
-        
+
         # 合并所有项目
-        all_items = [(item, self.post_api, "post") for item in self.posts] + \
-                    [(item, self.page_api, "page") for item in self.pages]
-        
+        all_items = [(item, self.post_api, "post") for item in self.posts] + [
+            (item, self.page_api, "page") for item in self.pages
+        ]
+
         total = len(all_items)
-        
+
         for current, (item, api, item_type) in enumerate(all_items, 1):
             item = self.upload_and_replace(item)
             item_dict = item.__dict__
             resp = api.create_or_update(item_dict)
             item_dict.update({"type": item_type, **resp})
-            log.info(f"[{current}/{total}]", "PUSH", item_dict.get("title"), **item_dict)
+            log.info(
+                f"[{current}/{total}]", "PUSH", item_dict.get("title"), **item_dict
+            )
 
     def pull(self, docs, posts=None, pages=None):
         if not posts:
@@ -326,27 +338,29 @@ class MainWorker:
             pages = pages.get("pages", [])
 
         # 合并所有项目
-        all_items = [(item, "post") for item in posts] + [(item, "page") for item in pages]
+        all_items = [(item, "post") for item in posts] + [
+            (item, "page") for item in pages
+        ]
         total = len(all_items)
-        
+
         for current, (item, item_type) in enumerate(all_items, 1):
             item = self.download_and_replace(item, docs)
             status = self.data_to_docs(item, docs)
-            
+
             # 创建日志数据，排除不需要的字段
             log_data = {
                 **item,
                 "type": item_type,
                 **status,
             }
-            
+
             log.info(f"[{current}/{total}]", "PULL", item.get("title"), **log_data)
 
     def clear(self):
-        self.backup()
+        # self.backup()
 
-        remote_posts =  set(self.post_api.get_all_title())
-        remote_pages =  set(self.page_api.get_all_title())
+        remote_posts = set(self.post_api.get_all_title())
+        remote_pages = set(self.page_api.get_all_title())
 
         [self.post_api.delete_post(x) for x in remote_posts]
         [self.page_api.delete_page(x) for x in remote_pages]
@@ -362,26 +376,37 @@ class MainWorker:
     def restore(self, backup_path="backups"):
         """从备份目录恢复数据"""
         result = self.root_api.restore_all(backup_path)
-        data_restore_result = result.get("data",{})
-        static_restore_result = result.get("static",{})
+        data_restore_result = result.get("data", {})
+        static_restore_result = result.get("static", {})
         log.info("RESTORE", "完成", **data_restore_result)
         log.info("RESTORE", "完成", **static_restore_result)
 
+
 class SimpleCLI:
     """简化的CLI处理类"""
-    
-    def __init__(self, base_url, api_key):
+
+    def __init__(
+        self,
+        base_url,
+        api_key,
+        docs_path="docs",
+        backup_path="backups",
+        conflict_mode="show",
+    ):
         self.base_url = base_url
         self.api_key = api_key
+        self.docs_path = docs_path
+        self.backup_path = backup_path
+        self.conflict_mode = conflict_mode
+
         self.parser = argparse.ArgumentParser(
             description="文档同步工具",
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog=self._get_epilog()
+            epilog=self._get_epilog(),
         )
         self._setup_commands()
         self.log = log
 
-    
     def _get_epilog(self):
         """返回使用示例说明"""
         return """
@@ -418,49 +443,43 @@ class SimpleCLI:
 
   # 创建模板文档
   python main.py template
-
-  # 使用自定义文档路径
-  python main.py push --docs ./my_docs
         """
-    
+
     def _setup_commands(self):
         """设置命令和参数"""
-        subparsers = self.parser.add_subparsers(dest='command')
-        
+        subparsers = self.parser.add_subparsers(dest="command")
+
         # push 命令
-        push_parser = subparsers.add_parser('push', help='推送本地文档到远程')
-        push_parser.add_argument('--docs', default='docs', help='文档路径')
-        
+        subparsers.add_parser("push", help="推送本地文档到远程")
+
         # pull 命令
-        pull_parser = subparsers.add_parser('pull', help='从远程拉取文档到本地')
-        pull_parser.add_argument('--docs', default='docs', help='文档路径')
-        
+        subparsers.add_parser("pull", help="从远程拉取文档到本地")
+
         # conflict 命令
-        conflict_parser = subparsers.add_parser('conflict', help='处理冲突文档')
-        conflict_parser.add_argument('--docs', default='docs', help='文档路径')
-        conflict_parser.add_argument('--mode', choices=['show', 'pull', 'delete'], 
-                                   default='show', help='处理模式: show(仅显示), pull(拉取), delete(删除)')
-        
+        conflict_parser = subparsers.add_parser("conflict", help="处理冲突文档")
+        conflict_parser.add_argument(
+            "--mode",
+            choices=["show", "pull", "delete"],
+            default=self.conflict_mode,
+            help="处理模式: show(仅显示), pull(拉取), delete(删除)",
+        )
+
         # 备份命令
-        backup_parser = subparsers.add_parser('backup', help='备份远程数据')
-        backup_parser.add_argument('--backup_path', default='backups', help='备份目录路径')
-        
+        subparsers.add_parser("backup", help="备份远程数据")
+
         # 恢复命令
-        restore_parser = subparsers.add_parser('restore', help='从备份恢复数据')
-        restore_parser.add_argument('--backup_path', default='backups', help='备份目录路径')
-        
+        subparsers.add_parser("restore", help="从备份恢复数据")
+
         # 示例文档命令
-        example_parser = subparsers.add_parser('example', help='创建示例文档')
-        example_parser.add_argument('--docs', default='docs', help='示例文档目录路径')
-        
+        subparsers.add_parser("example", help="创建示例文档")
+
         # 模板文档命令
-        template_parser = subparsers.add_parser('template', help='创建模板文档')
-        template_parser.add_argument('--docs', default='docs', help='模板文档目录路径')
-        
+        subparsers.add_parser("template", help="创建模板文档")
+
         # 其他简单命令
-        subparsers.add_parser('clean', help='清理远程多余的静态文件')
-        subparsers.add_parser('clear', help='清空远程所有内容')
-    
+        subparsers.add_parser("clean", help="清理远程多余的静态文件")
+        subparsers.add_parser("clear", help="清空远程所有内容")
+
     def _print_logo(self):
         """打印Logo"""
         logo = rf"""
@@ -470,87 +489,98 @@ class SimpleCLI:
 |__/|__/\___/_/ /_/\_\\__/_/     v1.0.0
 """
         print(f"\033[32m{logo}\033[0m")
-    
+
     def run(self):
         """运行CLI"""
         args = self.parser.parse_args()
-        
+
         # 显示Logo
         self._print_logo()
-        
+
         if not args.command:
             self.log.debug("文档同步cli - 输入命令查看帮助")
             return 0
-        
+
         try:
-            # 使用硬编码的配置创建worker
             worker = MainWorker(self.base_url, self.api_key)
             offline = ["example", "template"]
 
-            # offline不需要验证，本地可以使用
-            if args.command not in offline:
-                resp = worker.auth_api.verify_api_key()
-                if not resp:
-                    self.log.error("api_key 验证失败", status_code=resp.status_code, **resp.json())
-                    return 0
-            
             # 简化的命令执行逻辑
-            if args.command in ['push', 'conflict']:
-                if not os.path.exists(args.docs):
-                    self.log.error(f"文档路径不存在: {args.docs}")
+            if args.command in ["push", "conflict"]:
+                if not os.path.exists(self.docs_path):
+                    self.log.error(f"文档路径不存在: {self.docs_path}")
                     return 1
-                    
-                if args.command == 'push':
-                    worker.push(args.docs)
+
+                if args.command == "push":
+                    worker.push(self.docs_path)
                 else:  # conflict
-                    worker.docs_to_data(args.docs)
-                    worker.conflict(mode=args.mode, docs=args.docs)
-                    
-            elif args.command == 'pull':
-                if not os.path.exists(args.docs):
-                    os.makedirs(args.docs)
-                worker.pull(args.docs)
-                
-            elif args.command == 'clean':
+                    worker.docs_to_data(self.docs_path)
+                    conflict_mode = getattr(args, "mode", self.conflict_mode)
+                    worker.conflict(mode=conflict_mode, docs=self.docs_path)
+
+            elif args.command == "pull":
+                if not os.path.exists(self.docs_path):
+                    os.makedirs(self.docs_path)
+                worker.pull(self.docs_path)
+
+            elif args.command == "clean":
                 worker.clean()
-                
-            elif args.command == 'clear':
-                if input("\033[93m确认清空远程所有内容? (y/N): ").lower() in ['y', 'yes']:
+
+            elif args.command == "clear":
+                if input("\033[93m确认清空远程所有内容? (y/N): ").lower() in [
+                    "y",
+                    "yes",
+                ]:
                     worker.clear()
                 else:
                     print("操作取消")
-                    
-            elif args.command == 'backup':
-                if not os.path.exists(args.backup_path):
-                    os.makedirs(args.backup_path)
-                worker.backup(args.backup_path)
-                
-            elif args.command == 'restore':
-                if not os.path.exists(args.backup_path):
-                    self.log.error(f"备份目录不存在: {args.backup_path}")
+
+            elif args.command == "backup":
+                if not os.path.exists(self.backup_path):
+                    os.makedirs(self.backup_path)
+                worker.backup(self.backup_path)
+
+            elif args.command == "restore":
+                if not os.path.exists(self.backup_path):
+                    self.log.error(f"备份目录不存在: {self.backup_path}")
                     return 1
-                worker.restore(args.backup_path)
-                
-            elif args.command == 'example':
-                worker.example_maker(args.docs)
-                
-            elif args.command == 'template':
-                worker.template_maker(args.docs)
-                
+                worker.restore(self.backup_path)
+
+            elif args.command == "example":
+                worker.example_maker(self.docs_path)
+
+            elif args.command == "template":
+                worker.template_maker(self.docs_path)
+
         except Exception as e:
             self.log.error(f"执行错误: {e}")
             return 1
-        
+
         return 0
-    
-def main(base_url, api_key):
-    return SimpleCLI(base_url, api_key).run()
+
+
+def main(
+    base_url, api_key, docs_path="docs", backup_path="backups", conflict_mode="show"
+):
+    return SimpleCLI(base_url, api_key, docs_path, backup_path, conflict_mode).run()
+
 
 if __name__ == "__main__":
-    # 硬编码配置
+    # 硬编码所有配置参数
     config = {
         "base_url": "http://hon-ker.cn",
-        "api_key": "12138"
+        "api_key": "123456",
+        "docs_path": "/home/clay/docs",  # 硬编码文档路径
+        "backup_path": "/home/clay/backups",  # 硬编码备份路径
+        "conflict_mode": "show",  # 硬编码冲突处理模式
     }
-    
-    sys.exit(main(config["base_url"], config["api_key"]))
+
+    sys.exit(
+        main(
+            base_url=config["base_url"],
+            api_key=config["api_key"],
+            docs_path=config["docs_path"],
+            backup_path=config["backup_path"],
+            conflict_mode=config["conflict_mode"],
+        )
+    )

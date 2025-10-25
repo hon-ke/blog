@@ -31,33 +31,33 @@ def handle_manager_errors(func: Callable[..., Awaitable[Any]]) -> Callable[..., 
 
 class BaseModelManager(Generic[T]):
     """基础Repository提供通用CRUD操作"""
-    
+
     def __init__(self, model: Type[T]):
         self._model = model
-        
-    
+
+
     async def get(self, **kwargs) -> T | None:
         """获取单个对象"""
         return await self._model.get(**kwargs)
-    
-    
+
+
     async def get_or_none(self, **kwargs) -> T | None:
         """获取单个对象"""
         return await self._model.get_or_none(**kwargs)
-    
-    
+
+
     async def all(self, preload: List[str]|str = None, **filters) -> List[T]:
         """获取所有对象，并支持预加载关联关系"""
         if isinstance(preload,str):
             preload = [preload]
         if filters:
             query = await query.filter(**filters)
-        
+
         # 如果指定了 preload，则预加载关联关系
         if preload:
             for relation in preload:
                 query = await query.prefetch_related(relation)  # Tortoise ORM 的 prefetch_related
-        
+
         return query
 
     async def create(self, **kwargs) -> T:
@@ -88,7 +88,7 @@ class BaseModelManager(Generic[T]):
         await obj.update_from_dict(kwargs).save()
         return obj
 
-    
+
     async def delete(self, obj: T):
         """删除对象（支持软删除）"""
         async with in_transaction():
@@ -104,22 +104,22 @@ class BaseModelManager(Generic[T]):
             raise ManagerException(detail="模型不支持软删除", status_code=status.HTTP_400_BAD_REQUEST)
         await obj.update_from_dict({"is_active": False}).save()
 
-    
+
     async def exists(self, **kwargs) -> bool:
         """检查对象是否存在（无需事务）"""
         return await self._model.filter(**kwargs).exists()
 
-    
+
     # 可选：为常用 QuerySet 方法添加类型提示
     def filter(self, **kwargs) -> QuerySet:
         return self._model.filter(**kwargs)
 
     def exclude(self, **kwargs) -> QuerySet:
         return self._model.exclude(**kwargs)
-    
-    
+
+
     def last(self, **kwargs) -> QuerySet:
         return self._model.last()
-    
+
     def first(self, **kwargs) -> QuerySet:
         return self._model.first()
