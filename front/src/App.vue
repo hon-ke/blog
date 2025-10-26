@@ -6,7 +6,6 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
 import { watch } from 'vue'
-
 const route = useRoute()
 
 // 监听路由变化，设置正确的标题

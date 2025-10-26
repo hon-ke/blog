@@ -26,7 +26,6 @@ import Header from './Header.vue';
 import Aside from './Aside.vue';
 import Footer from './Footer.vue';
 import Loading from './Loading.vue';
-
 const route = useRoute();
 const loading = ref(true);
 

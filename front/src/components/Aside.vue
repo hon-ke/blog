@@ -172,5 +172,10 @@ onMounted(() => {
 
 .wp-block-social-links a i {
   font-size: 30px;
+  color: #66758c;
+}
+
+.wp-block-social-links a i:hover {
+  color: #3366ff;
 }
 </style>

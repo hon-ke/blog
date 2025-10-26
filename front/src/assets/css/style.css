@@ -4356,7 +4356,6 @@ body .layout #main {
     position: relative;
     flex: 1;
     width: 0;
-    height: auto;
     padding: 2rem;
     border-radius: 0.6rem;
 }
