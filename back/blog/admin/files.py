@@ -1,26 +1,26 @@
+import re
+import os
+import requests
+from typing import List
+from urllib.parse import unquote
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from fastapi.responses import FileResponse
-from urllib.parse import unquote
-
-from core.config import settings
-from blog.models import PostModel, page_manager,post_manager
-
 from datetime import datetime
 from pathlib import Path
-from typing import List
 from PIL import Image
 import mimetypes
 import aiofiles
 import magic
-import os
-import re
 import io
+
+from core.config import settings
+from blog.models import PostModel, page_manager, post_manager
 
 router = APIRouter(prefix="/file", tags=["文件上传"])
 
 class UploadConfig:
     """上传配置类"""
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 50MB
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
     UPLOAD_DIR = settings.STATIC_DIR
 
     # 允许的文件类型
@@ -44,6 +44,61 @@ class UploadConfig:
         'webp': 80
     }
     PNG_COMPRESS_LEVEL = 6
+
+def sanitize_filename(filename: str) -> str:
+    """
+    清理文件名，将特殊字符转换为下划线
+    """
+    if '/' in filename:
+        dir_path = os.path.dirname(filename)
+        base_name = os.path.basename(filename)
+        cleaned_name = _clean_base_name(base_name)
+        return os.path.join(dir_path, cleaned_name)
+    else:
+        return _clean_base_name(filename)
+
+def _clean_base_name(filename: str) -> str:
+    """清理基础文件名"""
+    filename = filename.strip()
+
+    replacements = {
+        ' ': '_', '(': '_', ')': '_', '[': '_', ']': '_',
+        '{': '_', '}': '_', '<': '_', '>': '_', ',': '_',
+        ';': '_', ':': '_', '!': '_', '?': '_', '@': '_',
+        '#': '_', '$': '_', '%': '_', '^': '_', '&': '_',
+        '*': '_', '=': '_', '+': '_', '|': '_', '~': '_',
+        '`': '_', '"': '_', "'": '_', '\\': '_', '/': '_'
+    }
+
+    for old_char, new_char in replacements.items():
+        filename = filename.replace(old_char, new_char)
+
+    filename = re.sub(r'_+', '_', filename)
+    filename = filename.strip('_')
+
+    if not filename:
+        filename = 'unnamed_file'
+
+    return filename
+
+def process_uploaded_file(file_path: str) -> str:
+    """
+    处理上传的文件路径，清理文件名部分
+    """
+    if not file_path.startswith('/static/'):
+        return file_path
+
+    static_part = '/static/'
+    relative_path = file_path[len(static_part):]
+
+    if '/' in relative_path:
+        dir_part = os.path.dirname(relative_path)
+        file_name = os.path.basename(relative_path)
+        cleaned_name = sanitize_filename(file_name)
+        return static_part + os.path.join(dir_part, cleaned_name)
+    else:
+        cleaned_name = sanitize_filename(relative_path)
+        return static_part + cleaned_name
 
 def ensure_directories():
     """确保上传目录存在"""
@@ -82,12 +137,14 @@ def get_file_type(content: bytes, filename: str) -> str:
 def generate_filename(original_name: str, upload_dir: str) -> str:
     """生成唯一文件名"""
     base_name, ext = os.path.splitext(original_name)
-    filename = original_name
+    # 先清理文件名
+    cleaned_base = sanitize_filename(base_name)
+    filename = f"{cleaned_base}{ext}"
 
     counter = 1
     while os.path.exists(os.path.join(upload_dir, filename)):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{base_name}_{timestamp}_{counter}{ext}" if counter > 1 else f"{base_name}_{timestamp}{ext}"
+        filename = f"{cleaned_base}_{timestamp}_{counter}{ext}" if counter > 1 else f"{cleaned_base}_{timestamp}{ext}"
         counter += 1
 
     return filename
@@ -268,18 +325,12 @@ async def upload_multiple(files: List[UploadFile] = File(...)):
         "results": results
     }
 
-
-
-# 确保静态目录存在
 def get_safe_path(file_path: str) -> Path:
     """获取安全的文件路径，防止目录遍历攻击"""
-    # 解码URL编码的路径
     decoded_path = unquote(file_path)
-
     static_path = Path(settings.STATIC_DIR).resolve()
     full_path = (static_path / decoded_path).resolve()
 
-    # 确保文件在static目录内
     if not str(full_path).startswith(str(static_path)):
         raise HTTPException(status_code=400, detail="无效的文件路径")
 
@@ -299,10 +350,7 @@ async def download_file(file_path: str, as_attachment: bool = True):
         if not full_path.is_file():
             raise HTTPException(status_code=400, detail="请求的路径不是文件")
 
-        # 获取文件类型
         mime_type, _ = mimetypes.guess_type(str(full_path))
-
-        # 获取文件名用于下载
         filename = Path(file_path).name
 
         return FileResponse(
@@ -316,28 +364,16 @@ async def download_file(file_path: str, as_attachment: bool = True):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
 
-def find_attachments(markdown_content:str) -> List[str]:
+def find_attachments(markdown_content: str) -> List[str]:
     """
     从 Markdown 内容中提取所有以 /static/ 开头的附件路径
-
-    Args:
-        markdown_content: Markdown 文本内容
-
-    Returns:
-        附件路径列表（去重后的）
     """
-    # 匹配 Markdown 中常见的资源引用格式
     patterns = [
-        # 图片: ![alt](/static/image.png) 或 ![alt](/static/image.png "title")
-        r'!\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)',
-        # 链接: [text](/static/file.pdf) 或 [text](/static/file.pdf "title")
-        r'\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)',
-        # HTML img 标签: <img src="/static/image.jpg">
-        r'<img[^>]*src=["\'](/static/[^"\']+)["\'][^>]*>',
-        # HTML a 标签: <a href="/static/file.pdf">
-        r'<a[^>]*href=["\'](/static/[^"\']+)["\'][^>]*>',
-        # 直接路径
-        r'(?<!`)(/static/[^\s<>"\'\)]+)'
+        r'!\[.*?\]\(\s*(/static/[^)\s]+\.[a-zA-Z0-9]{1,10})(?:\s+[^)]*)?\s*\)',
+        r'\[.*?\]\(\s*(/static/[^)\s]+\.[a-zA-Z0-9]{1,10})(?:\s+[^)]*)?\s*\)',
+        r'<img[^>]*src=["\'](/static/[^"\']+\.[a-zA-Z0-9]{1,10})["\'][^>]*>',
+        r'<a[^>]*href=["\'](/static/[^"\']+\.[a-zA-Z0-9]{1,10})["\'][^>]*>',
+        r'(?<!`)/static/(?:[^/\s]+/)*[^/\s]+\.[a-zA-Z0-9]{1,10}'
     ]
 
     attachments = []
@@ -345,71 +381,99 @@ def find_attachments(markdown_content:str) -> List[str]:
     for pattern in patterns:
         matches = re.findall(pattern, markdown_content, re.IGNORECASE)
         for match in matches:
-            # 清理路径，移除查询参数和可能的标题文本
-            clean_path = match.split('?')[0].split('#')[0].strip()
-            clean_path = clean_path.split('"')[0].strip()  # 移除标题文本
+            if isinstance(match, tuple):
+                match = match[0]
+
+            clean_path = match.split('?')[0].split('#')[0].split('"')[0].strip()
+            clean_path = unquote(clean_path)
 
             if clean_path and clean_path.startswith('/static/'):
                 attachments.append(clean_path)
 
-    # 去重并返回
     return list(set(attachments))
-
 
 def get_all_static_files(static_dir: str) -> List[str]:
     """
     递归获取 static 目录下的所有文件
-
-    Args:
-        static_dir: static 目录的路径
-
-    Returns:
-        所有文件的绝对路径列表
     """
     static_path = Path(static_dir)
     if not static_path.exists():
         return []
 
     all_files = []
-
-    # 递归遍历所有文件和子目录
     for file_path in static_path.rglob("*"):
         if file_path.is_file():
             relative_path = str(file_path.relative_to(static_path))
-            all_files.append(str(relative_path))
+            all_files.append(relative_path)
 
     return all_files
 
+def clean_filename_in_static_dir(static_dir: str):
+    """
+    清理静态目录中所有文件的文件名
+    """
+    for root, dirs, files in os.walk(static_dir):
+        for file in files:
+            original_path = os.path.join(root, file)
+            cleaned_name = sanitize_filename(file)
+
+            if cleaned_name != file:
+                new_path = os.path.join(root, cleaned_name)
+                try:
+                    os.rename(original_path, new_path)
+                except OSError:
+                    continue
+
 @router.delete("/clean")
 async def clean():
-    post_content = await post_manager.filter().values("cover","content")
+    """清理未使用的静态文件"""
+    # 首先清理文件名
+    clean_filename_in_static_dir(settings.STATIC_DIR)
+
+    post_content = await post_manager.filter().values("cover", "content")
     page_content = await page_manager.filter().values("content")
 
-    # 正确的方式：使用列表推导式提取 content 字段
     post_list_from_content = [item["content"] for item in post_content]
     post_list_form_cover = [item["cover"] for item in post_content]
     page_content_list = [item["content"] for item in page_content]
 
-    # 合并所有内容
-    all_content = "".join( post_list_from_content+post_list_form_cover + page_content_list)
+    all_content = "".join(post_list_from_content + post_list_form_cover + page_content_list)
 
-    # 压缩后的和未压缩的
-    attach_list =  find_attachments(all_content)
-    attach_list += [x.replace("compressed","uploads",1) for x in attach_list if "compressed" in x]
-    attach_list = [x.replace("/static/","",1)for x in attach_list]
+    # 查找附件并处理文件名
+    attach_list = find_attachments(all_content)
 
-    # print(attach_list)
+    # 处理附件文件名
+    cleaned_attach_list = []
+    for attach_path in attach_list:
+        cleaned_path = process_uploaded_file(attach_path)
+        cleaned_attach_list.append(cleaned_path)
 
-    static_files =  get_all_static_files(settings.STATIC_DIR)
+    # 添加压缩版本和非压缩版本的映射
+    final_attach_list = []
+    for attach_path in cleaned_attach_list:
+        final_attach_list.append(attach_path)
+        if "compressed" in attach_path:
+            final_attach_list.append(attach_path.replace("compressed", "uploads", 1))
 
-    remove_list = set(static_files)-set(attach_list)
+    # 转换为相对路径
+    final_attach_list = [x.replace("/static/", "", 1) for x in final_attach_list]
+    final_attach_list = list(set(final_attach_list))
 
-    # print(len(remove_list),len(static_files),len(attach_list))
-    removed  = 0
-    for index,x in enumerate(remove_list,1):
-        os.remove(settings.STATIC_DIR+"/"+x)
-        removed+=1
+    static_files = get_all_static_files(settings.STATIC_DIR)
+    remove_list = set(static_files) - set(final_attach_list)
 
-    # print({"Total":len(static_files),"Used":len(attach_list),"Removed":removed})
+    removed = 0
+    for file_path in remove_list:
+        full_path = os.path.join(settings.STATIC_DIR, file_path)
+        try:
+            os.remove(full_path)
+            removed += 1
+        except OSError:
+            continue
 
-    return {"Total":len(static_files),"Used":len(attach_list),"Removed":removed}
+    return {
+        "Total": len(static_files),
+        "Used": len(final_attach_list),
+        "Removed": removed,
+        "Remaining": len(static_files) - removed
+    }

@@ -1,4 +1,5 @@
 #!/home/clay/.venv/bin/python
+
 from remote import RemotePostAPI, RemoteFileAPI, RemotePageAPI, RemoteRootAPI, AuthAPI
 from typing import List, Union, Optional, Dict, Any, Tuple
 from local import DocsScanner, Post, Page, DocsMaker
@@ -184,7 +185,6 @@ class MainWorker:
 
         item["content"] = content
         return item
-
     def _get_static_file(self, md_content: str, unique: bool = True) -> List[str]:
         """
         从 Markdown 内容中提取所有以 /static/ 开头的静态资源路径
@@ -196,18 +196,10 @@ class MainWorker:
         Returns:
             静态资源路径列表
         """
-        # 改进的正则表达式，正确处理带标题的情况
+        # 更宽松的正则表达式，匹配所有 /static/ 开头的路径
         patterns = [
-            # 图片: ![alt](/static/image.png) 或 ![alt](/static/image.png "title")
-            r"!\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)",
-            # 链接: [text](/static/file.pdf) 或 [text](/static/file.pdf "title")
-            r"\[.*?\]\(\s*(/static/[^)\s]+)(?:\s+[^)]*)?\s*\)",
-            # HTML img 标签: <img src="/static/image.jpg">
-            r'<img[^>]*src=["\'](/static/[^"\']+)["\'][^>]*>',
-            # HTML a 标签: <a href="/static/file.pdf">
-            r'<a[^>]*href=["\'](/static/[^"\']+)["\'][^>]*>',
-            # 直接路径（可能被代码块排除）
-            r'(?<!`)(/static/[^\s<>"\'\)]+)',
+            # 匹配所有 /static/ 开头的路径，包含括号
+            r'/static/[^\s<>"\'\)]*(?:\([^)]*\))?[^\s<>"\'\)]*'
         ]
 
         resources = []
@@ -220,7 +212,11 @@ class MainWorker:
                 clean_path = clean_path.split('"')[0].strip()  # 移除标题文本
                 clean_path = unquote(clean_path)  # URL 解码
 
-                if clean_path and clean_path.startswith("/static/"):
+                # 进一步验证这确实是一个文件路径（包含文件名）
+                if (clean_path and
+                    clean_path.startswith("/static/") and
+                    '/' in clean_path[8:] and  # 确保有子路径
+                    '.' in clean_path.split('/')[-1]):  # 确保文件名中有点（可能是后缀）
                     resources.append(clean_path)
 
         # 去重处理
@@ -530,6 +526,14 @@ class SimpleCLI:
 
         if not args.command:
             self.log.debug("文档同步cli - 输入命令查看帮助")
+            config = {
+                "base_url": self.base_url,
+                "api_key": self.api_key,
+                "docs_path": self.docs_path,
+                "backup_all": self.backup_path,
+                "conflict_mode": self.conflict_mode,
+            }
+            self.log.info(**config)
             return 0
 
         try:
@@ -622,7 +626,7 @@ def main(
 if __name__ == "__main__":
     # 硬编码所有配置参数
     config = {
-        "base_url": "http://127.0.0.1:8000",
+            "base_url": "http://127.0.0.1:8000",
         "api_key": "123456",
         "docs_path": "/home/clay/docs",  # 硬编码文档路径
         "backup_path": "/home/clay/backups",  # 硬编码备份路径
