@@ -221,7 +221,7 @@ body .layout .article-header .article-title {
     body .layout #aside #tab-nav:checked~.aside-tab .nav-active label,
     body .layout #aside #notes .notes-tabbar,
     body .layout #notes #aside .notes-tabbar {
-        background-color: rgba(247, 248, 249, 0.8);
+        background-color: #fff;
     }
 
     body .layout #aside {
