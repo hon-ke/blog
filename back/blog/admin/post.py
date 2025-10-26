@@ -1,3 +1,4 @@
+import datetime
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
 from blog.models import post_manager
@@ -28,11 +29,11 @@ async def create_post(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="文章标题已存在"
                 )
-        
+
         # 设置默认分类
         if not post_data.category:
             post_data.category = "默认"
-        
+
         if post_data.is_top:
             toped_post =  await post_manager.filter(is_top=True)
             for x in toped_post:
@@ -40,13 +41,15 @@ async def create_post(
                 await x.save()
 
         # 创建帖子
+        if not post_data.title:
+            post_data.title = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
         create_data = exclude_empty(post_data.model_dump())
         new_post = await post_manager.create(
             **create_data
         )
-        
+
         return new_post
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -97,7 +100,7 @@ async def update_post(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在"
             )
-        
+
         # 验证标题唯一性（标题有更新时）
         update_data = exclude_empty(post_data.model_dump())
         if "title" in update_data and update_data["title"]:
@@ -109,12 +112,12 @@ async def update_post(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="文章标题已存在"
                 )
-        
+
         await post.update_from_dict(update_data)
         await post.save()
-        
+
         return post
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -138,14 +141,14 @@ async def delete_post(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在"
             )
-        
+
         await post_manager.delete(post)
-        
+
         return {
             "status_code": status.HTTP_200_OK,
             "detail": "删除成功",
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -171,12 +174,12 @@ async def toggle_top(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在"
             )
-        
+
         post.is_top = is_top
         await post.save()
-        
+
         return post
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -202,12 +205,12 @@ async def toggle_lock(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="内容不存在"
             )
-        
+
         post.is_locked = is_locked
         await post.save()
-        
+
         return post
-        
+
     except HTTPException:
         raise
     except Exception as e:

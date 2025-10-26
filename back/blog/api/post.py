@@ -46,14 +46,8 @@ async def get_public_posts(
             .order_by("-is_top", "-created_at")\
             .all()
 
-        fixed_list = []
-        for x in posts:
-            if not x.title:
-                x.title = str(x.id)
-                print(x)
-            fixed_list.append(x)
         return PostListResponse(
-            posts=fixed_list,
+            posts=posts,
             total=total,
             total_page=total_page,
             current_page=page,
