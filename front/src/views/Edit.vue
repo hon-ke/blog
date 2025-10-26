@@ -44,7 +44,7 @@
                 <MarkdownEditor v-model="editorText" :type="type" :api-key="apiKey" @save="handleSave"
                     @update:modelValue="handleContentUpdate" @status-change="handleStatusChange"
                     @upload-progress="handleUploadProgress" @error="handleError" ref="editorRef" />
-                
+
             </main>
         </section>
     </div>
@@ -184,20 +184,6 @@ const setInfo = (newType, activeMenuData) => {
     if (activeMenuData == "新建" || activeMenuData == "新建page") {
         // 初始化
         PostModel.category = ""
-        Object.assign(PageModel, {
-            // 页面标题
-            title: " 首页导航中显示的名字",
-            // 页面描述
-            description: " 关于页面的描述，可选",
-            // 页面链接
-            link: " 访问页面的链接，以 / 开头",
-            // 图标
-            icon: " 首页导航中显示的icon,可以访问 /icons 寻找类名",
-            // 是否启用
-            is_active: true,
-            // 排序权重
-            order: 0,
-        });
         setState()
         editorText.value = ""
         insetMetaData(type.value)
