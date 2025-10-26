@@ -124,8 +124,6 @@ const PageModel = {
     title: "",
     // 页面描述
     description: "",
-    // 页面链接
-    link: "",
     // 图标
     icon: "",
     // 是否启用
