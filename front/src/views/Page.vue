@@ -42,10 +42,10 @@ const loadPageData = async (path) => {
         loading.value = true;
         notFound.value = false;
         has_page.value = false;
-        
+
         const response = await axios.get(`/api/pages/${path}`);
         post.value = response.data;
-        
+
         if (post.value.content) {
             post.value.content = md.parse(post.value.content);
             has_page.value = true;
@@ -80,7 +80,7 @@ watch(
 <style>
 .page-container {
     position: relative;
-    min-height: 60vh;
+    min-height: 30vh;
     display: flex;
     flex-direction: column;
 }
