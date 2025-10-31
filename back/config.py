@@ -25,35 +25,35 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: str
 
     # STATIC file
-    STATIC_DIR: str 
+    STATIC_DIR: str
 
     # 数据库连接URL
     DATABASE_URL: str = "sqlite://./db.sqlite3"
 
     # JWT配置
-    SECRET_KEY: str 
-    ALGORITHM: str 
+    SECRET_KEY: str
+    ALGORITHM: str
 
     # 前端URL
-    FRONTEND_URL: str 
+    FRONTEND_URL: str
 
     # 客户端配置 - 存储原始字符串
     CLIENT: str
     # 预定义分类 - 存储原始字符串
-    PRESET_CATEGORIES:List[str]
+    PRESET_CATEGORIES:List[str] = ["笔记"]
 
     # website相关
-    WEBSITE_NAME: str 
-    WEBSITE_URL: str 
+    WEBSITE_NAME: str
+    WEBSITE_URL: str
 
     # 管理员配置
     ROOT_NAME: str
-    ROOT_NICKNAME: str 
+    ROOT_NICKNAME: str
     ROOT_EMAIL: str
-    ROOT_PASSWORD: str 
+    ROOT_PASSWORD: str
     ROOT_DES: str
     ROOT_AVATAR: str
-    ROOT_API_KEY: str 
+    ROOT_API_KEY: str
     ROOT_KEY: str
 
 
