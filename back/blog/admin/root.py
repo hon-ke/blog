@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException,UploadFile,File
 from fastapi.responses import JSONResponse,FileResponse
 from tortoise.transactions import in_transaction
 from blog.models import PostModel, CommentModel, PageModel
-from core.config import settings
+from config import settings
 from datetime import datetime
 from pathlib import Path
 import zipfile

@@ -1,6 +1,6 @@
 # gunicorn_conf.py
 import multiprocessing
-from core.config import settings
+from config import settings
 import os
 
 # 服务器配置

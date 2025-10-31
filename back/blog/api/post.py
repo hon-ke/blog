@@ -3,7 +3,7 @@ from typing import List, Optional
 from blog.models import post_manager,PostModel
 from blog.schemas import PostResponse, PostListResponse
 from tortoise.expressions import Q
-from core.config import settings
+from config import settings
 import re
 import math
 

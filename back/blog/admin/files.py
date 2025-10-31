@@ -13,7 +13,7 @@ import aiofiles
 import magic
 import io
 
-from core.config import settings
+from config import settings
 from blog.models import PostModel, page_manager, post_manager
 
 router = APIRouter(prefix="/file", tags=["文件上传"])

@@ -401,9 +401,11 @@ onMounted(() => {
     gap: 15px;
 }
 
+
 .result-item {
     display: flex;
     align-items: flex-start;
+    position:relative;
     gap: 15px;
     padding: 15px;
     background: rgba(255, 255, 255, 0.1);
@@ -422,6 +424,9 @@ onMounted(() => {
     transform: translateY(-2px);
 }
 
+.result-item *{
+    max-width:100%;
+}
 .result-icon {
     margin-top: 3px;
     flex-shrink: 0;

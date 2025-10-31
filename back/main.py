@@ -18,23 +18,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 
-from core.config import settings
+from config import settings
 from core.security import is_admin
 from core.db import close_db, init_db
 
 # 常规路由
-from blog.api import post, other, comments, page
+from blog.api import post, other, comments, page, rss
 from blog.admin import files as files_admin
 from blog.admin import page as page_admin
 from blog.admin import post as post_admin
-from blog.admin import root 
+from blog.admin import root
 from core.api import router as meta_router
 from core.api import root_router as meta_root_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理
-    
+
     负责：
     - 数据库初始化
     - 资源清理
@@ -80,6 +80,7 @@ app.include_router(other.router, prefix=prefix)
 app.include_router(post.router, prefix=prefix)
 app.include_router(comments.router, prefix=prefix)
 app.include_router(meta_router, prefix=prefix)
+app.include_router(rss.router, prefix=prefix)
 
 # 注册路由 - 管理员路由
 app.include_router(post_admin.router, prefix=prefix, dependencies=[Depends(is_admin)])

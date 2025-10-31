@@ -2,7 +2,7 @@
 import os
 from tortoise import Tortoise
 from core.security import hash_password
-from core.config import settings
+from config import settings
 from core.meta import MetaModel
 from blog.preset import preset_blogdata
 from pathlib import Path

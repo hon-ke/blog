@@ -6,7 +6,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status, Header,Request
 from fastapi import Cookie,Query
 from jose import JWTError, jwt
-from core.config import settings
+from config import settings
 from core.meta import website_manager
 
 
