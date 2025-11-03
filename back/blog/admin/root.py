@@ -67,7 +67,6 @@ async def export_dump():
                 "id": page.id,
                 "title": page.title,
                 "description": page.description,
-                "link": page.link,
                 "icon": page.icon,
                 "content": page.content,
                 "is_active": page.is_active,
@@ -135,7 +134,6 @@ async def import_dump(file: UploadFile = File(...)):
                 page_fields = {
                     "title": page_data.get('title'),
                     "description": page_data.get('description'),
-                    "link": page_data.get('link'),
                     "icon": page_data.get('icon', 'czs-circle'),
                     "content": page_data.get('content', ''),
                     "is_active": page_data.get('is_active', True),
@@ -276,7 +274,7 @@ async def validate_import_file(file: UploadFile = File(...)):
             if not isinstance(page, dict):
                 return {"valid": False, "error": f"页面数据 {i} 必须是对象"}
             
-            page_required = ['id', 'title', 'link']
+            page_required = ['id', 'title']
             for field in page_required:
                 if field not in page:
                     return {"valid": False, "error": f"页面 {i} 缺少必要字段: {field}"}
